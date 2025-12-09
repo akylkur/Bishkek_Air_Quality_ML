@@ -3,19 +3,9 @@
 venv/
 env/
 
-# кэш питона
+# кеши питона
 __pycache__/
 *.pyc
 
-# VSCode, Mac и прочий мусор
-.vscode/
-.DS_Store
-
-# данные
+# данные (можно игнорить только сырые)
 data/raw/
-
-# большие модели, если будут огромные файлы
-*.pkl
-*.joblib
-models/*.pkl
-models/*.joblib

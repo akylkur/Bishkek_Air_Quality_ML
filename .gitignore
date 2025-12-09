@@ -1,0 +1,21 @@
+# виртуальное окружение
+.venv/
+venv/
+env/
+
+# кэш питона
+__pycache__/
+*.pyc
+
+# VSCode, Mac и прочий мусор
+.vscode/
+.DS_Store
+
+# данные
+data/raw/
+
+# большие модели, если будут огромные файлы
+*.pkl
+*.joblib
+models/*.pkl
+models/*.joblib

@@ -1,40 +1,6 @@
-def pm25_to_aqi(pm25: float) -> int:
-    """
-    Примерная функция перевода PM2.5 -> AQI по стандарту US EPA.
-    Это упрощённая версия, но для проекта достаточно.
-    """
-    # Таблица диапазонов (pm_low, pm_high, aqi_low, aqi_high)
-    breakpoints = [
-        (0.0, 12.0, 0, 50),
-        (12.1, 35.4, 51, 100),
-        (35.5, 55.4, 101, 150),
-        (55.5, 150.4, 151, 200),
-        (150.5, 250.4, 201, 300),
-        (250.5, 350.4, 301, 400),
-        (350.5, 500.4, 401, 500),
-    ]
-
-    for pm_low, pm_high, aqi_low, aqi_high in breakpoints:
-        if pm25 <= pm_high:
-            aqi = ((aqi_high - aqi_low) / (pm_high - pm_low)) * (pm25 - pm_low) + aqi_low
-            return round(aqi)
-
-    return 500  # максимальное значение AQI
-
-
-def aqi_category(aqi: int) -> str:
-    """
-    Возвращает текстовую категорию по уровню AQI (только на русском).
-    """
-    if aqi <= 50:
-        return "Хорошо — воздух чистый 😌"
-    elif aqi <= 100:
-        return "Умеренно — в целом нормально, но людям с чувствительными лёгкими лучше быть осторожнее 🙂"
-    elif aqi <= 150:
-        return "Вредно для чувствительных групп — лучше не перенапрягаться и меньше быть на улице 🤧"
-    elif aqi <= 200:
-        return "Вредно для здоровья — воздух плохой, по возможности сократи время на улице 😷"
-    elif aqi <= 300:
-        return "Очень вредно — по возможности оставайся в помещении 🥵"
-    else:
-        return "Опасно — не выходи на улицу без крайней необходимости 🛑"
+def aqi_category(value):
+    for upper, label in [(50, "Good"), (100, "Moderate"), (150, "Unhealthy for sensitive groups"),
+                         (200, "Unhealthy"), (300, "Very unhealthy")]:
+        if value <= upper:
+            return label
+    return "Hazardous"

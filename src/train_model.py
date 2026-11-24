@@ -1,55 +1,54 @@
-from pathlib import Path
-
 import joblib
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-from .fetch_data import load_raw_data
-from .preprocess import preprocess_for_training
+from .fetch_data import ROOT, archive
+from .preprocess import features, targets
 
-MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
-
-
-def train_aqi_model(n_hours_ahead: int = 1):
-    raw_df = load_raw_data()
-    df = preprocess_for_training(raw_df, n_hours_ahead=n_hours_ahead)
-
-    feature_cols = ["pm25", "temperature", "humidity", "wind_speed", "hour", "dayofweek", "month"]
-    feature_cols = [c for c in feature_cols if c in df.columns]
-
-    X = df[feature_cols]
-    y = df["target"]
-
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    model = RandomForestRegressor(
-        n_estimators=200,
-        random_state=42,
-        n_jobs=-1
-    )
-
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_val)
-    mae = mean_absolute_error(y_val, y_pred)
-    mse = mean_squared_error(y_val, y_pred)
-    rmse = mse ** 0.5
-
-    print(f"MAE: {mae:.2f}, RMSE: {rmse:.2f}")
+MODEL = ROOT / "models/us_aqi_forest.joblib"
+REPORTS = ROOT / "reports"
 
 
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    model_path = MODELS_DIR / f"aqi_model_{n_hours_ahead}h.joblib"
-    joblib.dump({"model": model, "features": feature_cols}, model_path)
+def fit(x, y):
+    forest = RandomForestRegressor(n_estimators=80, max_depth=12, min_samples_leaf=5,
+                                   random_state=42, n_jobs=2)
+    return forest.fit(x, y)
 
-    print(f"Модель сохранена в {model_path}")
+
+def main():
+    frame = archive()
+    x, y = features(frame), targets(frame)
+    valid = x.notna().all(axis=1) & y.notna().all(axis=1)
+    x, y = x[valid], y[valid]
+    records = []
+    hour = pd.Timedelta(hours=1)
+    for month in (7, 10, 12):
+        start = pd.Timestamp(year=2025, month=month, day=1, tz=frame.index.tz)
+        end = start + pd.offsets.MonthBegin()
+        train = x.index + 24 * hour < start
+        test = (x.index >= start) & (x.index + 24 * hour < end)
+        forest = fit(x[train], y[train])
+        for name, pred in [("Random forest", forest.predict(x[test])),
+                           ("Persistence", x.loc[test, ["us_aqi"]].to_numpy())]:
+            errors = y[test].to_numpy() - pred
+            for i in range(24):
+                e = errors[:, i]
+                records.append([start.strftime("%Y-%m"), i + 1, name, len(e),
+                                np.abs(e).mean(), np.sqrt(np.mean(e**2))])
+    scores = pd.DataFrame(records, columns=["Month", "Hours ahead", "Model", "Origins", "MAE", "RMSE"])
+    scores.to_csv(REPORTS / "metrics.csv", index=False)
+    final = scores[scores.Month == "2025-12"]
+    ax = final.pivot(index="Hours ahead", columns="Model", values="MAE").plot(
+        color=["#92724c", "#166566"], linewidth=2, figsize=(8, 3.3))
+    ax.set(title="December holdout · forecast error by lead time", ylabel="MAE (US AQI points)")
+    ax.figure.tight_layout()
+    ax.figure.savefig(REPORTS / "holdout.png", dpi=150)
+    joblib.dump(fit(x, y), MODEL, compress=3)
 
 
 if __name__ == "__main__":
-    # Обучаем модели для горизонтов 1..24 часов
-    for h in range(1, 25):
-        print("=" * 50)
-        print(f"Обучаем модель для горизонта {h} ч вперёд")
-        train_aqi_model(n_hours_ahead=h)
+    main()
